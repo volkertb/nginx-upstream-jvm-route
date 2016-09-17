@@ -1,3 +1,94 @@
+# Available versions: 
+
+## Version 1.6.3
+You can obtain the image as follows:
+
+    docker pull volkertb/nginx-upstream-jvm-route:1.6.3
+
+# About the Docker image
+
+This image is built on the Centos 7 base image (centos:7). See https://hub.docker.com/_/centos/
+
+This image contains a ready-to-run build of the Nginx light-weight reverse proxy server, which has been patched to support so-called "sticky-session" load balancing when used in conjunction with Tomcat nodes, or nodes running on Tomcat-derived application servers, such as certain (older) versions of JBoss. This is accomplished through support of the "jvmRoute" attribute, which enables application server nodes to "tag" sessions ID cookies with an additional node-specific identifier, so that the load balancer (in this case the patched version of Nginx) will know how to maintain connections between logged-in users and the specific server nodes to which they are logged in.
+
+The commercial version of Nginx already supports sticky sessions, but in this Docker image, an available unofficial open-source patch has been applied, which enables this feature in the free and open-source version of Nginx as well.
+
+The patch that was applied in this image can be found here:
+
+    https://github.com/nulab/nginx-upstream-jvm-route
+
+As of 2016-09-17, the ginx-upstream-jvm-route patch on GitHub was last updated in 2014, to make it compatible with version 1.6 of Nginx. The last release of Nginx at nginx.org that the patch can still be cleanly applied to is version 1.6.3, so the source code of that specific version was used to build and patch Nginx for this image.
+
+Although the GitHub project page of the nginx-upstream-jvm-route patch contains some brief information and configuration examples, it is not very detailed and I ran into some problems while trying to apply those examples to my project. For further information about what ended up working for me at least, read on.
+
+In this image, the default configuration file is located at /usr/local/nginx/conf/nginx.conf
+
+Below is an example of a customized nginx.conf that configures Nginx to proxy from a public HTTPS/SSL URL to a pool of three Tomcat nodes, each running locally at port 8080 in their respective container instances. You will have to COPY your own nginx.conf to /usr/local/nginx/conf/ in your Dockerfile when you base it on this image.
+
+    worker_processes  1;
+
+    events {
+        worker_connections  1024;
+    }
+
+    http {
+        include       mime.types;
+        default_type  application/octet-stream;
+
+        #access_log  logs/access.log  main;
+
+        sendfile        on;
+
+        keepalive_timeout  65;
+
+        upstream backend {
+            server tomcat-node1:8080 srun_id=node1; # In server.xml: <Engine name="tomcat1" defaultHost="localhost" jvmRoute="node1">
+            server tomcat-node2:8080 srun_id=node2; # In server.xml: <Engine name="tomcat2" defaultHost="localhost" jvmRoute="node2">
+            server tomcat-node3:8080 srun_id=node3; # In server.xml: <Engine name="tomcat3" defaultHost="localhost" jvmRoute="node3">
+
+            jvm_route $cookie_JSESSIONID reverse;
+        }
+        
+        server {
+            listen       80;
+            listen 443 default_server ssl;
+            
+            # Assuming I'm using Avahi and the Docker machine's hostname is "nginx-loadbalancer".
+            # See https://twitter.com/volkertb/status/777120785878151170
+            server_name nginx-loadbalancer.local;
+
+            ssl_certificate /usr/local/nginx/ssl/nginx.crt;
+            ssl_certificate_key /usr/local/nginx/ssl/nginx.key;
+
+            location / {
+                # With thanks to https://serverfault.com/a/782154
+                proxy_pass http://backend;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_ssl_session_reuse off;
+                proxy_set_header Host $http_host;
+            }
+
+            # redirect server error pages to the static page /50x.html
+            #
+            error_page   500 502 503 504  /50x.html;
+            location = /50x.html {
+                root   html;
+            }
+
+        }
+
+    }
+
+This above configuration expects the SSL-related files nginx.key and nginx.crt to be placed in /usr/local/nginx/ssl/. Take this into consideration when you base your own SSL-specific container image on this image.
+
+You can generate a self-signed certificate for Nginx as follows:
+
+    openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout ./nginx.key -out ./nginx.crt
+
+Naturally, you will have to COPY nginx.key and nginx.crt to /usr/local/nginx/ssl/ in your Dockerfile.
+
+If you have any questions or suggested improvements, please don't hesitate to comment below. I'm happy to improve this further in any way. I'm just trying to improve on the hard work of others here. Also, this is my first publicly shared Docker image and I'm always willing to learn how to do things better. Thank you! 😄
+
 =nginx_upstream_jvm_route=
 -------
 
