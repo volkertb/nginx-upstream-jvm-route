@@ -17,6 +17,7 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 # License of changes made after the fork in repository https://github.com/nulab/nginx-upstream-jvm-route
 
 Author: https://github.com/dragon3
+
 License of his contributions to the project: unknown, not specified (assumed to be the same as the original license from before the fork)
 
 # Dockerfile license:
